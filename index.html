@@ -3,1047 +3,958 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>H-Plus Construction Operations Dashboard</title>
-    <!-- Tailwind CSS -->
+    <title>H-Plus Enterprise - Cổng Vận Hành & Quản Lý Dự Án Xây Dựng</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Inter & FontAwesome -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
-                    colors: {
-                        brand: { 50: '#f0fdf4', 100: '#dcfce7', 500: '#22c55e', 600: '#16a34a', 700: '#15803d', dark: '#0f172a' }
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- SheetJS cho xuất Excel nếu cần mở rộng -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .print-only { display: none; }
         @media print {
-            body { background: white !important; color: black !important; }
-            .no-print { display: none !important; }
+            body { background: white !important; }
+            no-print, header, .no-print { display: none !important; }
             .print-only { display: block !important; }
-            .print-break { page-break-before: always; }
+            shadow-sm, border { border: none !important; box-shadow: none !important; }
         }
-        /* Custom scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+<body class="bg-slate-100 font-sans text-slate-800 antialiased">
 
-    <!-- Top Navigation Header -->
-    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-50 no-print">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <!-- Header Doanh Nghiệp -->
+    <header class="bg-slate-900 text-white shadow-lg border-b border-slate-800 no-print">
+        <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
             <div class="flex items-center space-x-3">
-                <div class="bg-brand-500 text-slate-900 font-bold p-2 rounded-lg flex items-center justify-center text-xl shadow">
-                    <i class="fa-solid fa-hard-hat"></i>
+                <div class="bg-amber-500 text-slate-900 p-2.5 rounded-xl font-bold shadow">
+                    <i class="fa-solid fa-helmet-safety text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight tracking-wide">H-PLUS OPERATIONS</h1>
-                    <p class="text-xs text-slate-400">Hệ Thống Quản Lý Thi Công & Dự Án Công Trường</p>
+                    <span class="text-[10px] uppercase tracking-widest bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded font-bold">Enterprise Operation System</span>
+                    <h1 class="text-lg font-bold mt-0.5">H-Plus Construction Dashboard</h1>
                 </div>
             </div>
-
-            <!-- Team Sync & Backup Bar -->
-            <div class="flex items-center space-x-2">
-                <button onclick="exportData()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition border border-slate-700" title="Xuất toàn bộ dữ liệu dự án ra file JSON cho thành viên khác">
-                    <i class="fa-solid fa-cloud-arrow-down text-brand-500"></i>
-                    <span>Sao Lưu (Export)</span>
+            
+            <!-- Bộ chọn Dự án & Thao tác Nhóm -->
+            <div class="flex items-center space-x-3 flex-wrap">
+                <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-building mr-1"></i> Dự án:</span>
+                    <select id="globalProjectSelect" onchange="switchProject(this.value)" class="bg-slate-900 text-white text-xs font-semibold px-2 py-1 rounded border border-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500">
+                        <!-- Danh sách dự án động -->
+                    </select>
+                </div>
+                <button onclick="openModal('projectModal')" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold text-xs px-3 py-2 rounded-lg transition flex items-center shadow">
+                    <i class="fa-solid fa-plus mr-1.5"></i> Thêm Dự Án
                 </button>
-                <label class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition border border-slate-700 cursor-pointer" title="Nhập file JSON cấu hình dự án của team">
-                    <i class="fa-solid fa-cloud-arrow-up text-amber-400"></i>
-                    <span>Khôi Phục (Import)</span>
-                    <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(event)">
-                </label>
-                <button onclick="resetDataToDefault()" class="bg-rose-900/40 hover:bg-rose-900/70 text-rose-300 px-2.5 py-1.5 rounded-lg text-xs font-medium transition border border-rose-800" title="Khôi phục dữ liệu mẫu ban đầu">
-                    <i class="fa-solid fa-rotate-right"></i>
+                <button onclick="deleteCurrentProject()" class="bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white text-xs px-2.5 py-2 rounded-lg transition border border-rose-500/30" title="Xóa dự án hiện tại">
+                    <i class="fa-solid fa-trash-can"></i>
                 </button>
             </div>
         </div>
     </header>
 
-    <!-- Main Content Container -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-        <!-- Project Switcher & Status Banner -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 no-print flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div class="flex items-center space-x-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Chọn Dự Án Đang Quản Lý</label>
-                    <select id="projectSelector" onchange="switchProject(this.value)" class="bg-slate-50 border border-slate-300 text-slate-900 font-semibold text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block p-2.5 min-w-[280px]">
-                        <!-- Populated dynamically -->
-                    </select>
-                </div>
-                <button onclick="openNewProjectModal()" class="mt-5 bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-lg text-sm font-medium shadow-sm transition flex items-center space-x-1">
-                    <i class="fa-solid fa-plus text-xs"></i>
-                    <span>Thêm Dự Án</span>
+    <!-- Thanh Công Cụ Sao Lưu & Chia Sẻ Dữ Liệu Nhóm -->
+    <div class="bg-slate-800 text-slate-300 py-2 border-b border-slate-700 no-print">
+        <div class="container mx-auto px-4 flex justify-between items-center text-xs flex-wrap gap-2">
+            <div class="flex items-center space-x-2">
+                <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i> Tự động lưu LocalStorage:</span>
+                <span class="text-slate-400">Dữ liệu được bảo toàn trên trình duyệt này.</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button onclick="exportDataJSON()" class="bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded transition flex items-center">
+                    <i class="fa-solid fa-download mr-1.5 text-amber-400"></i> Sao lưu file (JSON)
+                </button>
+                <label class="bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1 rounded transition flex items-center cursor-pointer">
+                    <i class="fa-solid fa-upload mr-1.5 text-emerald-400"></i> Phục hồi từ file
+                    <input type="file" id="importFile" accept=".json" onchange="importDataJSON(event)" class="hidden">
+                </label>
+                <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-3 py-1 rounded transition flex items-center ml-2">
+                    <i class="fa-solid fa-print mr-1.5"></i> Xuất Báo Cáo / In PDF
                 </button>
             </div>
+        </div>
+    </div>
 
-            <!-- Quick Stats Pills -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
-                    <span class="block text-xs text-slate-500 font-medium">Tiến Độ Tổng Thể</span>
-                    <span id="statProgress" class="text-lg font-bold text-brand-600">0%</span>
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 space-y-6">
+
+        <!-- Thông tin tổng quan dự án được chọn -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-wrap justify-between items-center gap-4">
+            <div>
+                <span class="text-xs font-bold text-amber-600 uppercase tracking-wider" id="currentProjectCode">MÃ: HP-01</span>
+                <h2 class="text-xl font-bold text-slate-900 mt-0.5" id="currentProjectTitle">Đang tải tên dự án...</h2>
+                <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i> Địa điểm: <span id="currentProjectLocation" class="font-medium text-slate-700">--</span> | Chỉ huy trưởng: <span id="currentProjectManager" class="font-medium text-slate-700">--</span></p>
+            </div>
+            <div class="flex items-center space-x-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div>
+                    <p class="text-[11px] text-slate-500 font-medium">Ngân sách dự kiến</p>
+                    <p class="text-sm font-bold text-slate-800" id="currentProjectBudget">--</p>
                 </div>
-                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
-                    <span class="block text-xs text-slate-500 font-medium">Hạng Mục Hoàn Thành</span>
-                    <span id="statCompleted" class="text-lg font-bold text-slate-800">0/0</span>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
-                    <span class="block text-xs text-slate-500 font-medium">Nhân Công Hôm Nay</span>
-                    <span id="statWorkers" class="text-lg font-bold text-blue-600">0 người</span>
-                </div>
-                <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
-                    <span class="block text-xs text-slate-500 font-medium">Chất Lượng / An Toàn</span>
-                    <span id="statQA" class="text-lg font-bold text-emerald-600">Đạt Chuẩn</span>
+                <div class="border-l border-slate-200 pl-4">
+                    <p class="text-[11px] text-slate-500 font-medium">Thời gian thực hiện</p>
+                    <p class="text-sm font-bold text-slate-800" id="currentProjectTimeline">--</p>
                 </div>
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
-        <div class="border-b border-slate-200 no-print flex space-x-2 overflow-x-auto">
-            <button onclick="switchTab('overview')" id="tab-btn-overview" class="tab-btn px-4 py-3 border-b-2 font-medium text-sm flex items-center space-x-2 whitespace-nowrap transition border-brand-600 text-brand-600">
-                <i class="fa-solid fa-chart-pie"></i>
-                <span>Tổng Quan & Nhật Ký</span>
+        <!-- Tab Điều Hướng Phân Hệ -->
+        <div class="flex border-b border-slate-200 space-x-4 overflow-x-auto no-print">
+            <button onclick="switchTab('wbs')" id="tabBtn-wbs" class="tab-btn px-4 py-2.5 font-bold text-sm border-b-2 border-amber-500 text-amber-600 whitespace-nowrap">
+                <i class="fa-solid fa-diagram-project mr-2"></i> Tiến Độ WBS & Giao Việc
             </button>
-            <button onclick="switchTab('wbs')" id="tab-btn-wbs" class="tab-btn px-4 py-3 border-b-2 font-medium text-sm flex items-center space-x-2 whitespace-nowrap transition border-transparent text-slate-500 hover:text-slate-800">
-                <i class="fa-solid fa-bars-progress"></i>
-                <span>Tiến Độ Chi Tiết (WBS)</span>
+            <button onclick="switchTab('checklist')" id="tabBtn-checklist" class="tab-btn px-4 py-2.5 font-medium text-sm text-slate-500 hover:text-slate-800 border-b-2 border-transparent whitespace-nowrap">
+                <i class="fa-solid fa-list-check mr-2"></i> Checklist Nghiệm Thu & Hình Ảnh
             </button>
-            <button onclick="switchTab('checklist')" id="tab-btn-checklist" class="tab-btn px-4 py-3 border-b-2 font-medium text-sm flex items-center space-x-2 whitespace-nowrap transition border-transparent text-slate-500 hover:text-slate-800">
-                <i class="fa-solid fa-clipboard-check"></i>
-                <span>Nghiệm Thu & Checklist</span>
+            <button onclick="switchTab('resources')" id="tabBtn-resources" class="tab-btn px-4 py-2.5 font-medium text-sm text-slate-500 hover:text-slate-800 border-b-2 border-transparent whitespace-nowrap">
+                <i class="fa-solid fa-users-gear mr-2"></i> Nhân Lực, Thiết Bị & Vật Tư
             </button>
-            <button onclick="switchTab('gallery')" id="tab-btn-gallery" class="tab-btn px-4 py-3 border-b-2 font-medium text-sm flex items-center space-x-2 whitespace-nowrap transition border-transparent text-slate-500 hover:text-slate-800">
-                <i class="fa-solid fa-images"></i>
-                <span>Hình Ảnh Thực Tế</span>
-            </button>
-            <button onclick="switchTab('report')" id="tab-btn-report" class="tab-btn px-4 py-3 border-b-2 font-medium text-sm flex items-center space-x-2 whitespace-nowrap transition border-transparent text-slate-500 hover:text-slate-800">
-                <i class="fa-solid fa-file-pdf"></i>
-                <span>Xuất Báo Cáo In Ấn</span>
+            <button onclick="switchTab('hse')" id="tabBtn-hse" class="tab-btn px-4 py-2.5 font-medium text-sm text-slate-500 hover:text-slate-800 border-b-2 border-transparent whitespace-nowrap">
+                <i class="fa-solid fa-triangle-exclamation mr-2"></i> An Toàn HSE & Sự Cố
             </button>
         </div>
 
-        <!-- TAB 1: OVERVIEW & DAILY LOG -->
-        <div id="tab-content-overview" class="tab-content space-y-6">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Project Info Card -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 lg:col-span-1">
-                    <div class="flex justify-between items-start">
-                        <h2 class="font-bold text-base text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-circle-info text-brand-600"></i>
-                            <span>Thông Tin Công Trình</span>
-                        </h2>
-                        <button onclick="openEditProjectModal()" class="text-xs text-brand-600 hover:text-brand-700 font-medium bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-md">
-                            <i class="fa-solid fa-pen-to-square mr-1"></i> Sửa
-                        </button>
-                    </div>
-                    <div id="projectInfoDetails" class="space-y-3 text-sm">
-                        <!-- Filled by JS -->
-                    </div>
-                </div>
-
-                <!-- Daily Operations Log -->
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 lg:col-span-2">
-                    <div class="flex justify-between items-center">
-                        <h2 class="font-bold text-base text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-calendar-day text-brand-600"></i>
-                            <span>Nhật Ký Công Trường Hằng Ngày</span>
-                        </h2>
-                        <button onclick="openAddLogModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shadow-sm">
-                            <i class="fa-solid fa-plus mr-1"></i> Thêm Nhật Ký
-                        </button>
-                    </div>
-                    <div id="dailyLogsList" class="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                        <!-- Filled by JS -->
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 2: WBS SCHEDULE -->
-        <div id="tab-content-wbs" class="tab-content space-y-6 hidden">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <!-- ================= PHÂN HỆ 1: WBS & GIAO VIỆC ================= -->
+        <div id="tabContent-wbs" class="tab-content space-y-6">
+            
+            <!-- Bảng Tiến độ chi tiết công việc (WBS) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center flex-wrap gap-2">
                     <div>
-                        <h2 class="font-bold text-base text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-bars-progress text-brand-600"></i>
-                            <span>Tiến Độ Chi Tiết Hạng Mục Thi Công (WBS)</span>
-                        </h2>
-                        <p class="text-xs text-slate-500">Cập nhật % hoàn thành từng hạng mục để hệ thống tự động tính tiến độ chung.</p>
+                        <h3 class="font-bold text-slate-800">Tiến Độ Chi Tiết Hạng Mục (WBS - Mẫu Nhà Phố 4 Tầng)</h3>
+                        <p class="text-xs text-slate-400">Theo dõi phần việc cấu kiện theo thời gian thực</p>
                     </div>
-                    <button onclick="openAddTaskModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition shadow-sm flex items-center space-x-1 self-start">
-                        <i class="fa-solid fa-plus text-xs"></i>
-                        <span>Thêm Hạng Mục Mới</span>
+                    <button onclick="openModal('wbsModal')" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-lg transition font-medium">
+                        <i class="fa-solid fa-plus mr-1"></i> Thêm Công Việc WBS
                     </button>
                 </div>
-
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead>
-                            <tr class="bg-slate-100 text-slate-700 uppercase text-xs tracking-wider border-b border-slate-200">
-                                <th class="p-3 font-semibold rounded-tl-lg">Mã / Hạng Mục</th>
-                                <th class="p-3 font-semibold">Thời Gian (Bắt đầu - Kết thúc)</th>
-                                <th class="p-3 font-semibold">Nhà Thầu / Đội Thi Công</th>
-                                <th class="p-3 font-semibold w-32">Hoàn Thành</th>
-                                <th class="p-3 font-semibold">Trạng Thái</th>
-                                <th class="p-3 font-semibold text-right rounded-tr-lg">Thao Tác</th>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <th class="py-3 px-4">Mã WBS</th>
+                                <th class="py-3 px-4">Tên công việc / Hạng mục</th>
+                                <th class="py-3 px-4">Thời gian thực hiện</th>
+                                <th class="py-3 px-4">Tiến độ (%)</th>
+                                <th class="py-3 px-4">Trạng thái</th>
+                                <th class="py-3 px-4 text-center">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody id="wbsTableBody" class="divide-y divide-slate-100">
-                            <!-- Filled by JS -->
+                            <!-- Dữ liệu render bằng JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
 
-        <!-- TAB 3: CHECKLIST & QA/QC -->
-        <div id="tab-content-checklist" class="tab-content space-y-6 hidden">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <!-- Bảng Giao Việc & Phân Công Nhiệm Vụ -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center flex-wrap gap-2">
                     <div>
-                        <h2 class="font-bold text-base text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-clipboard-check text-brand-600"></i>
-                            <span>Checklist Nghiệm Thu & Kiểm Soát Chất Lượng (QA/QC)</span>
-                        </h2>
-                        <p class="text-xs text-slate-500">Kiểm tra các hạng mục cốt lõi trước khi đổ bê tông hoặc chuyển giai đoạn.</p>
+                        <h3 class="font-bold text-slate-800">Bảng Giao Việc & Phân Công Nhiệm Vụ Hằng Ngày</h3>
+                        <p class="text-xs text-slate-400">Giao việc cụ thể cho kỹ sư hoặc tổ đội thi công</p>
                     </div>
-                    <button onclick="openAddChecklistModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition shadow-sm flex items-center space-x-1 self-start">
-                        <i class="fa-solid fa-plus text-xs"></i>
-                        <span>Thêm Mục Kiểm Tra</span>
+                    <button onclick="openModal('taskModal')" class="bg-slate-800 hover:bg-slate-700 text-white text-xs px-3 py-1.5 rounded-lg transition font-medium">
+                        <i class="fa-solid fa-plus mr-1"></i> Giao Nhiệm Vụ Mới
                     </button>
                 </div>
-
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead>
-                            <tr class="bg-slate-100 text-slate-700 uppercase text-xs tracking-wider border-b border-slate-200">
-                                <th class="p-3 font-semibold rounded-tl-lg">Hạng Mục Kiểm Tra (Inspection Item)</th>
-                                <th class="p-3 font-semibold">Tiêu Chuẩn Kỹ Thuật</th>
-                                <th class="p-3 font-semibold w-36 text-center">Kết Quả</th>
-                                <th class="p-3 font-semibold">Ghi Chú / Sai Sót</th>
-                                <th class="p-3 font-semibold text-right rounded-tr-lg">Thao Tác</th>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <th class="py-3 px-4">Nội dung nhiệm vụ</th>
+                                <th class="py-3 px-4">Người phụ trách / Tổ đội</th>
+                                <th class="py-3 px-4">Mức độ ưu tiên</th>
+                                <th class="py-3 px-4">Thời hạn</th>
+                                <th class="py-3 px-4">Trạng thái</th>
+                                <th class="py-3 px-4 text-center">Thao tác</th>
                             </tr>
                         </thead>
-                        <tbody id="checklistTableBody" class="divide-y divide-slate-100">
-                            <!-- Filled by JS -->
+                        <tbody id="taskTableBody" class="divide-y divide-slate-100">
+                            <!-- Dữ liệu render bằng JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
 
-        <!-- TAB 4: GALLERY / HÌNH ẢNH THỰC TẾ -->
-        <div id="tab-content-gallery" class="tab-content space-y-6 hidden">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <!-- ================= PHÂN HỆ 2: CHECKLIST NGHIỆM THU & HÌNH ẢNH ================= -->
+        <div id="tabContent-checklist" class="tab-content space-y-6 hidden">
+            
+            <!-- Bảng Tổng hợp nội dung Check list -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
                     <div>
-                        <h2 class="font-bold text-base text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-images text-brand-600"></i>
-                            <span>Thư Viện Ảnh Thực Tế Công Trường</span>
-                        </h2>
-                        <p class="text-xs text-slate-500">Lưu trữ ảnh nhật ký thi công theo từng giai đoạn thực tế.</p>
+                        <h3 class="font-bold text-slate-800">Bảng Tổng Hợp Tiêu Chuẩn Nghiệm Thu Công Trình (Nhà Phố 4 Tầng)</h3>
+                        <p class="text-xs text-slate-400">Thống kê tỷ lệ hoàn thành các hạng mục kiểm tra chất lượng QA/QC</p>
                     </div>
-                    <button onclick="openAddPhotoModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium px-3.5 py-2 rounded-lg transition shadow-sm flex items-center space-x-1 self-start">
-                        <i class="fa-solid fa-camera text-xs"></i>
-                        <span>Thêm Ảnh Mới</span>
+                    <button onclick="openModal('checklistModal')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-2 rounded-lg transition font-medium">
+                        <i class="fa-solid fa-plus mr-1"></i> Thêm Mục Kiểm Tra
                     </button>
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <p class="text-xs text-slate-500 font-medium">TỔNG HẠNG MỤC CHECKLIST</p>
+                        <h4 class="text-xl font-bold text-slate-800 mt-1" id="sumTotalCheck">0</h4>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                        <p class="text-xs text-emerald-600 font-medium">ĐẠT TIÊU CHUẨN</p>
+                        <h4 class="text-xl font-bold text-emerald-700 mt-1" id="sumPassCheck">0</h4>
+                    </div>
+                    <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                        <p class="text-xs text-amber-600 font-medium">CHỜ KIỂM TRA / SỬA CHỮA</p>
+                        <h4 class="text-xl font-bold text-amber-700 mt-1" id="sumPendingCheck">0</h4>
+                    </div>
+                    <div class="bg-rose-50 p-3 rounded-lg border border-rose-100">
+                        <p class="text-xs text-rose-600 font-medium">KHÔNG ĐẠT</p>
+                        <h4 class="text-xl font-bold text-rose-700 mt-1" id="sumFailCheck">0</h4>
+                    </div>
+                </div>
+            </div>
 
-                <div id="galleryGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <!-- Filled by JS -->
+            <!-- Bảng Chi Tiết Checklist & Ảnh Thực Tế -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100">
+                    <h3 class="font-bold text-slate-800">Danh Sách Kiểm Tra Chất Lượng & Hình Ảnh Hiện Trường</h3>
+                    <p class="text-xs text-slate-400">Đính kèm ảnh minh chứng thực tế thi công tại công trường</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <th class="py-3 px-4">Hạng mục nghiệm thu</th>
+                                <th class="py-3 px-4">Tiêu chuẩn kỹ thuật</th>
+                                <th class="py-3 px-4">Ảnh thực tế</th>
+                                <th class="py-3 px-4">Kết quả</th>
+                                <th class="py-3 px-4">Ghi chú QA/QC</th>
+                                <th class="py-3 px-4 text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="checklistTableBody" class="divide-y divide-slate-100">
+                            <!-- Dữ liệu render bằng JS -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
-        <!-- TAB 5: BÁO CÁO & IN ẤN -->
-        <div id="tab-content-report" class="tab-content space-y-6 hidden">
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-                <div class="flex justify-between items-center no-print">
-                    <div>
-                        <h2 class="font-bold text-lg text-slate-800 flex items-center space-x-2">
-                            <i class="fa-solid fa-file-pdf text-rose-600"></i>
-                            <span>Báo Cáo Tiến Độ Tổng Hợp & Nghiệm Thu</span>
-                        </h2>
-                        <p class="text-xs text-slate-500">Xem trước biên bản báo cáo tuần/tháng trước khi xuất file PDF hoặc in ấn.</p>
+        <!-- ================= PHÂN HỆ 3: NHÂN LỰC, THIẾT BỊ & VẬT TƯ ================= -->
+        <div id="tabContent-resources" class="tab-content space-y-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Nhân công -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-users text-blue-600 mr-2"></i> Nhân Lực Công Trường</h3>
+                        <button onclick="openModal('manpowerModal')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-2.5 py-1 rounded font-medium">+ Thêm</button>
                     </div>
-                    <button onclick="window.print()" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg text-sm font-medium shadow transition flex items-center space-x-2">
-                        <i class="fa-solid fa-print"></i>
-                        <span>In Báo Cáo / Lưu PDF</span>
-                    </button>
-                </div>
-
-                <!-- Printable Report Sheet -->
-                <div id="printableReport" class="border border-slate-300 rounded-xl p-8 bg-white space-y-6 text-slate-800 max-w-4xl mx-auto shadow-sm">
-                    <div class="border-b border-slate-200 pb-4 flex justify-between items-start">
-                        <div>
-                            <span class="text-xs font-bold uppercase tracking-wider text-brand-600">CÔNG TY CỔ PHẦN XÂY DỰNG H-PLUS</span>
-                            <h1 id="reportProjectName" class="text-xl font-bold text-slate-900 mt-1">BÁO CÁO TIẾN ĐỘ THI CÔNG</h1>
-                            <p id="reportProjectLocation" class="text-xs text-slate-500 mt-0.5">Địa điểm: ...</p>
-                        </div>
-                        <div class="text-right text-xs text-slate-500">
-                            <p>Ngày lập báo cáo: <span id="reportDate">12/10/2026</span></p>
-                            <p>Đơn vị / Kỹ sư: Chỉ Huy Trưởng H-Plus</p>
-                        </div>
-                    </div>
-
-                    <!-- Summary KPI -->
-                    <div class="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 text-center text-sm">
-                        <div>
-                            <span class="block text-xs text-slate-500">Tiến Độ Tổng Thể</span>
-                            <span id="reportStatProgress" class="font-bold text-brand-600 text-lg">0%</span>
-                        </div>
-                        <div>
-                            <span class="block text-xs text-slate-500">Nhân Công Thi Công</span>
-                            <span id="reportStatWorkers" class="font-bold text-slate-800 text-lg">0 người</span>
-                        </div>
-                        <div>
-                            <span class="block text-xs text-slate-500">Đánh Giá An Toàn & Chất Lượng</span>
-                            <span id="reportStatQA" class="font-bold text-emerald-600 text-lg">Đạt Chuẩn</span>
-                        </div>
-                    </div>
-
-                    <!-- WBS Table in Report -->
-                    <div>
-                        <h3 class="font-bold text-sm text-slate-800 uppercase tracking-wider mb-2">1. Tổng Hợp Tiến Độ Hạng Mục (WBS)</h3>
-                        <table class="w-full text-left border border-slate-300 text-xs">
-                            <thead>
-                                <tr class="bg-slate-100 text-slate-700 border-b border-slate-300">
-                                    <th class="p-2 border-r border-slate-300">Hạng Mục</th>
-                                    <th class="p-2 border-r border-slate-300">Thời Gian</th>
-                                    <th class="p-2 border-r border-slate-300">Nhà Thầu</th>
-                                    <th class="p-2 border-r border-slate-300">Tiến Độ</th>
-                                    <th class="p-2">Trạng Thái</th>
-                                </tr>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-slate-50 text-slate-500">
+                                <tr><th class="p-2">Tổ đội / Chức danh</th><th class="p-2">Số lượng</th><th class="p-2 text-center">Xóa</th></tr>
                             </thead>
-                            <tbody id="reportWbsTableBody">
-                                <!-- Filled by JS -->
-                            </tbody>
+                            <tbody id="manpowerTableBody" class="divide-y divide-slate-100"></tbody>
                         </table>
                     </div>
+                </div>
 
-                    <!-- Signatures -->
-                    <div class="grid grid-cols-3 gap-4 pt-8 text-center text-xs">
-                        <div>
-                            <p class="font-bold">ĐẠI DIỆN CHỦ ĐẦU TƯ</p>
-                            <p class="text-slate-400 italic mt-1">(Ký, ghi rõ họ tên)</p>
-                            <div class="h-16"></div>
-                        </div>
-                        <div>
-                            <p class="font-bold">TƯ VẤN GIÁM SÁT</p>
-                            <p class="text-slate-400 italic mt-1">(Ký, ghi rõ họ tên)</p>
-                            <div class="h-16"></div>
-                        </div>
-                        <div>
-                            <p class="font-bold">CHỈ HUY TRƯỞNG H-PLUS</p>
-                            <p class="text-slate-400 italic mt-1">(Ký, ghi rõ họ tên)</p>
-                            <div class="h-16"></div>
-                        </div>
+                <!-- Thiết bị & Xe máy -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-truck-monster text-amber-600 mr-2"></i> Thiết Bị & Xe Máy</h3>
+                        <button onclick="openModal('equipmentModal')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-2.5 py-1 rounded font-medium">+ Thêm</button>
                     </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-slate-50 text-slate-500">
+                                <tr><th class="p-2">Tên thiết bị</th><th class="p-2">Trạng thái</th><th class="p-2 text-center">Xóa</th></tr>
+                            </thead>
+                            <tbody id="equipmentTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Vật tư -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-boxes-stacked text-emerald-600 mr-2"></i> Đề Xuất Vật Tư</h3>
+                        <button onclick="openModal('materialModal')" class="bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs px-2.5 py-1 rounded font-medium">+ Thêm</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-slate-50 text-slate-500">
+                                <tr><th class="p-2">Vật tư</th><th class="p-2">Số lượng</th><th class="p-2 text-center">Xóa</th></tr>
+                            </thead>
+                            <tbody id="materialTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================= PHÂN HỆ 4: AN TOÀN HSE ================= -->
+        <div id="tabContent-hse" class="tab-content space-y-6 hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-slate-800">Báo Cáo An Toàn Lao Động & Sự Cố (HSE)</h3>
+                        <p class="text-xs text-slate-400">Giám sát rủi ro và biên bản xử lý an toàn công trường</p>
+                    </div>
+                    <button onclick="openModal('hseModal')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs px-3 py-1.5 rounded-lg transition font-medium">
+                        <i class="fa-solid fa-triangle-exclamation mr-1"></i> Báo Cáo Sự Cố / Vi Phạm
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <th class="py-3 px-4">Nội dung cảnh báo / Sự cố</th>
+                                <th class="py-3 px-4">Mức độ nghiêm trọng</th>
+                                <th class="py-3 px-4">Biện pháp khắc phục</th>
+                                <th class="py-3 px-4">Trạng thái xử lý</th>
+                                <th class="py-3 px-4 text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hseTableBody" class="divide-y divide-slate-100">
+                            <!-- Dữ liệu render bằng JS -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
     </main>
 
-    <!-- MODALS FOR ADDING / EDITING -->
-    
-    <!-- Modal: New/Edit Project -->
-    <div id="projectModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 id="projectModalTitle" class="font-bold text-lg text-slate-800">Thêm Dự Án Mới</h3>
-            <form id="projectForm" onsubmit="saveProject(event)" class="space-y-3 text-sm">
-                <input type="hidden" id="projectFormId">
+    <!-- ================= CÁC MODAL NHẬP LIỆU (POPUP) ================= -->
+
+    <!-- Modal Thêm Dự Án -->
+    <div id="projectModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa-solid fa-building-circle-arrow-right mr-2 text-amber-400"></i> Thêm Dự Án Mới</h3>
+                <button onclick="closeModal('projectModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleProjectSubmit(event)" class="p-6 space-y-4">
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Tên Dự Án</label>
-                    <input type="text" id="pName" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Mã dự án *</label>
+                    <input type="text" id="pCode" required placeholder="Ví dụ: HP-03" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500">
                 </div>
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Địa Điểm Công Trình</label>
-                    <input type="text" id="pLocation" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tên công trình / Dự án *</label>
+                    <input type="text" id="pName" required placeholder="Ví dụ: Nhà Phố Thương Mại 4 Tầng" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Chủ Đầu Tư</label>
-                        <input type="text" id="pInvestor" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Địa điểm *</label>
+                        <input type="text" id="pLocation" required placeholder="Quận 2, TP.HCM" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Quy Mô</label>
-                        <input type="text" id="pScale" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Chỉ huy trưởng *</label>
+                        <input type="text" id="pManager" required placeholder="KS. Nguyễn Văn A" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500">
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Ngày Bắt Đầu</label>
-                        <input type="date" id="pStart" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Ngân sách</label>
+                        <input type="text" id="pBudget" placeholder="12.5 Tỷ VNĐ" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Ngày Hoàn Thành (DK)</label>
-                        <input type="date" id="pEnd" required class="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Thời gian thực hiện</label>
+                        <input type="text" id="pTimeline" placeholder="6 Tháng" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500">
                     </div>
                 </div>
-                <div class="flex justify-end space-x-2 pt-3">
-                    <button type="button" onclick="closeModal('projectModal')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium">Hủy</button>
-                    <button type="submit" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg font-medium shadow">Lưu Dự Án</button>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('projectModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-bold rounded-lg shadow">Lưu Dự Án</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Add Daily Log -->
-    <div id="logModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 class="font-bold text-lg text-slate-800">Thêm Nhật Ký Thi Công</h3>
-            <form onsubmit="saveLog(event)" class="space-y-3 text-sm">
+    <!-- Modal WBS -->
+    <div id="wbsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa-solid fa-diagram-project mr-2 text-amber-400"></i> Thêm Công Việc WBS</h3>
+                <button onclick="closeModal('wbsModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleWbsSubmit(event)" class="p-6 space-y-4">
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Ngày / Tháng</label>
-                    <input type="date" id="logDate" required class="w-full border border-slate-300 rounded-lg p-2.5">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Mã WBS *</label>
+                    <input type="text" id="wCode" required placeholder="Ví dụ: WBS-1.4" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tên công việc *</label>
+                    <input type="text" id="wName" required placeholder="Đổ bê tông dầm sàn mái" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Nhân Công (Người)</label>
-                        <input type="number" id="logWorkers" value="25" required class="w-full border border-slate-300 rounded-lg p-2.5">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Thời gian thực hiện *</label>
+                        <input type="text" id="wTime" required placeholder="Tuần 8" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Thời Tiết</label>
-                        <select id="logWeather" class="w-full border border-slate-300 rounded-lg p-2.5">
-                            <option value="Nắng ráo, thuận lợi">Nắng ráo, thuận lợi</option>
-                            <option value="Có mưa giông ngắn">Có mưa giông ngắn</option>
-                            <option value="Mưa lớn tạm dừng">Mưa lớn tạm dừng</option>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Tiến độ (%) *</label>
+                        <input type="number" id="wProgress" min="0" max="100" required placeholder="0" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Trạng thái *</label>
+                    <select id="wStatus" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 bg-white">
+                        <option value="Đang thi công">Đang thi công</option>
+                        <option value="Đã hoàn thành">Đã hoàn thành</option>
+                        <option value="Chưa bắt đầu">Chưa bắt đầu</option>
+                    </select>
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('wbsModal')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg">Thêm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Giao Việc -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa-solid fa-list-check mr-2 text-amber-400"></i> Giao Nhiệm Vụ Mới</h3>
+                <button onclick="closeModal('taskModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleTaskSubmit(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nội dung nhiệm vụ *</label>
+                    <input type="text" id="tContent" required placeholder="Kiểm tra hệ thống ống cấp nước tầng 2" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Người phụ trách *</label>
+                        <input type="text" id="tAssignee" required placeholder="KS. Hùng" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Mức độ ưu tiên *</label>
+                        <select id="tPriority" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 bg-white">
+                            <option value="Khẩn cấp">Khẩn cấp</option>
+                            <option value="Quan trọng">Quan trọng</option>
+                            <option value="Bình thường">Bình thường</option>
                         </select>
                     </div>
                 </div>
-                <div>
-                    <label class="block font-medium text-slate-700 mb-1">Công Việc Đã Thực Hiện Hôm Nay</label>
-                    <textarea id="logContent" rows="3" required placeholder="Ví dụ: Đổ bê tông dầm sàn lầu 2, tháo coppha cột lầu 1..." class="w-full border border-slate-300 rounded-lg p-2.5"></textarea>
-                </div>
-                <div class="flex justify-end space-x-2 pt-3">
-                    <button type="button" onclick="closeModal('logModal')" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium">Hủy</button>
-                    <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-medium shadow">Thêm Nhật Ký</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Add/Edit Task WBS -->
-    <div id="taskModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 id="taskModalTitle" class="font-bold text-lg text-slate-800">Thêm Hạng Mục Thi Công</h3>
-            <form onsubmit="saveTask(event)" class="space-y-3 text-sm">
-                <input type="hidden" id="taskEditIdx">
-                <div>
-                    <label class="block font-medium text-slate-700 mb-1">Tên Hạng Mục</label>
-                    <input type="text" id="tName" required placeholder="Ví dụ: Cốt pha & Cốt thép dầm sàn Lầu 3" class="w-full border border-slate-300 rounded-lg p-2.5">
-                </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Bắt Đầu</label>
-                        <input type="text" id="tStart" required placeholder="15/10/2026" class="w-full border border-slate-300 rounded-lg p-2.5">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Thời hạn *</label>
+                        <input type="text" id="tDeadline" required placeholder="Hôm nay, 16:00" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Kết Thúc</label>
-                        <input type="text" id="tEnd" required placeholder="20/10/2026" class="w-full border border-slate-300 rounded-lg p-2.5">
-                    </div>
-                </div>
-                <div>
-                    <label class="block font-medium text-slate-700 mb-1">Nhà Thầu / Đội Thi Công</label>
-                    <input type="text" id="tContractor" required placeholder="Đội Cốp pha H-Plus 1" class="w-full border border-slate-300 rounded-lg p-2.5">
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Tiến Độ (%)</label>
-                        <input type="number" id="tProgress" min="0" max="100" value="0" required class="w-full border border-slate-300 rounded-lg p-2.5">
-                    </div>
-                    <div>
-                        <label class="block font-medium text-slate-700 mb-1">Trạng Thái</label>
-                        <select id="tStatus" class="w-full border border-slate-300 rounded-lg p-2.5">
-                            <option value="Chưa thực hiện">Chưa thực hiện</option>
-                            <option value="Đang thi công">Đang thi công</option>
-                            <option value="Đã hoàn thành">Đã hoàn thành</option>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Trạng thái *</label>
+                        <select id="tStatus" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 bg-white">
+                            <option value="Đang thực hiện">Đang thực hiện</option>
+                            <option value="Hoàn thành">Hoàn thành</option>
+                            <option value="Chưa bắt đầu">Chưa bắt đầu</option>
                         </select>
                     </div>
                 </div>
-                <div class="flex justify-end space-x-2 pt-3">
-                    <button type="button" onclick="closeModal('taskModal')" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium">Hủy</button>
-                    <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-medium shadow">Lưu Hạng Mục</button>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('taskModal')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg">Giao Việc</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Add Checklist Item -->
-    <div id="checklistModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 class="font-bold text-lg text-slate-800">Thêm Mục Nghiệm Thu</h3>
-            <form onsubmit="saveChecklistItem(event)" class="space-y-3 text-sm">
+    <!-- Modal Checklist -->
+    <div id="checklistModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa-solid fa-square-check mr-2 text-amber-400"></i> Thêm Hạng Mục Nghiệm Thu</h3>
+                <button onclick="closeModal('checklistModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form onsubmit="handleChecklistSubmit(event)" class="p-6 space-y-4">
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Nội Dung Kiểm Tra</label>
-                    <input type="text" id="cItem" required placeholder="Kiểm tra khoảng cách đai thép dầm..." class="w-full border border-slate-300 rounded-lg p-2.5">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Hạng mục nghiệm thu *</label>
+                    <input type="text" id="cItem" required placeholder="Nghiệm thu cốt thép dầm sàn" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
                 </div>
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Tiêu Chuẩn Kỹ Thuật</label>
-                    <input type="text" id="cStandard" required placeholder="Đúng bản thiết kế kết cấu, a=100mm..." class="w-full border border-slate-300 rounded-lg p-2.5">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tiêu chuẩn kỹ thuật *</label>
+                    <input type="text" id="cStandard" required placeholder="Đúng bản thiết kế, chủng kính phi 16" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Kết Quả</label>
-                        <select id="cResult" class="w-full border border-slate-300 rounded-lg p-2.5">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Kết quả *</label>
+                        <select id="cResult" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 bg-white">
                             <option value="Đạt">Đạt</option>
-                            <option value="Chưa đạt">Chưa đạt</option>
-                            <option value="Đang kiểm tra">Đang kiểm tra</option>
+                            <option value="Chờ kiểm tra">Chờ kiểm tra</option>
+                            <option value="Không đạt">Không đạt</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block font-medium text-slate-700 mb-1">Ghi Chú</label>
-                        <input type="text" id="cNote" placeholder="Không có lỗi" class="w-full border border-slate-300 rounded-lg p-2.5">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Ảnh thực tế hiện trường</label>
+                        <input type="file" id="cPhoto" accept="image/*" class="w-full text-xs text-slate-500 border border-slate-300 rounded-lg p-2 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-amber-50 file:text-amber-700">
                     </div>
                 </div>
-                <div class="flex justify-end space-x-2 pt-3">
-                    <button type="button" onclick="closeModal('checklistModal')" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium">Hủy</button>
-                    <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-medium shadow">Thêm Mục</button>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Ghi chú QA/QC</label>
+                    <input type="text" id="cNote" placeholder="Đã kiểm tra kỹ lưỡng" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('checklistModal')" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg">Thêm Mục</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Modal: Add Photo -->
-    <div id="photoModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <h3 class="font-bold text-lg text-slate-800">Thêm Ảnh Công Trường</h3>
-            <form onsubmit="savePhoto(event)" class="space-y-3 text-sm">
+    <!-- Modal Nhân lực -->
+    <div id="manpowerModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center"><h3 class="font-bold text-sm">Thêm Nhân Lực</h3><button onclick="closeModal('manpowerModal')"><i class="fa-solid fa-xmark"></i></button></div>
+            <form onsubmit="handleResourceSubmit(event, 'manpower')" class="p-6 space-y-4">
+                <div><label class="block text-xs font-semibold mb-1">Tổ đội / Chức danh *</label><input type="text" id="mpName" required class="w-full text-sm border rounded-lg p-2.5" placeholder="Tổ cốp pha"></div>
+                <div><label class="block text-xs font-semibold mb-1">Số lượng nhân công *</label><input type="text" id="mpCount" required class="w-full text-sm border rounded-lg p-2.5" placeholder="18 Người"></div>
+                <div class="flex justify-end space-x-2"><button type="button" onclick="closeModal('manpowerModal')" class="px-3 py-1.5 bg-slate-100 text-xs rounded">Hủy</button><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded">Thêm</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Thiết Bị -->
+    <div id="equipmentModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center"><h3 class="font-bold text-sm">Thêm Thiết Bị</h3><button onclick="closeModal('equipmentModal')"><i class="fa-solid fa-xmark"></i></button></div>
+            <form onsubmit="handleResourceSubmit(event, 'equipment')" class="p-6 space-y-4">
+                <div><label class="block text-xs font-semibold mb-1">Tên thiết bị / Xe máy *</label><input type="text" id="eqName" required class="w-full text-sm border rounded-lg p-2.5" placeholder="Cần cẩu tháp 5T"></div>
+                <div><label class="block text-xs font-semibold mb-1">Trạng thái *</label><input type="text" id="eqStatus" required class="w-full text-sm border rounded-lg p-2.5" placeholder="Hoạt động tốt"></div>
+                <div class="flex justify-end space-x-2"><button type="button" onclick="closeModal('equipmentModal')" class="px-3 py-1.5 bg-slate-100 text-xs rounded">Hủy</button><button type="submit" class="px-3 py-1.5 bg-amber-500 text-slate-900 text-xs font-bold rounded">Thêm</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Vật Tư -->
+    <div id="materialModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center"><h3 class="font-bold text-sm">Thêm Vật Tư</h3><button onclick="closeModal('materialModal')"><i class="fa-solid fa-xmark"></i></button></div>
+            <form onsubmit="handleResourceSubmit(event, 'material')" class="p-6 space-y-4">
+                <div><label class="block text-xs font-semibold mb-1">Tên vật tư *</label><input type="text" id="matName" required class="w-full text-sm border rounded-lg p-2.5" placeholder="Thép Hòa Phát phi 18"></div>
+                <div><label class="block text-xs font-semibold mb-1">Số lượng *</label><input type="text" id="matQty" required class="w-full text-sm border rounded-lg p-2.5" placeholder="15 Tấn"></div>
+                <div class="flex justify-end space-x-2"><button type="button" onclick="closeModal('materialModal')" class="px-3 py-1.5 bg-slate-100 text-xs rounded">Hủy</button><button type="submit" class="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded">Thêm</button></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal HSE -->
+    <div id="hseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-base"><i class="fa-solid fa-triangle-exclamation mr-2 text-rose-500"></i> Báo Cáo HSE</h3>
+                <button onclick="closeModal('hseModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleHseSubmit(event)" class="p-6 space-y-4">
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Tiêu Đề Ảnh</label>
-                    <input type="text" id="photoTitle" required placeholder="Đổ bê tông sàn lầu 2..." class="w-full border border-slate-300 rounded-lg p-2.5">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nội dung cảnh báo / Sự cố *</label>
+                    <input type="text" id="hContent" required placeholder="Công nhân chưa đeo dây an toàn tầng 3" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Mức độ nghiêm trọng *</label>
+                        <select id="hSeverity" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 bg-white">
+                            <option value="Critical (Nguy hiểm)">Critical (Nguy hiểm)</option>
+                            <option value="Warning (Cảnh báo)">Warning (Cảnh báo)</option>
+                            <option value="Note (Nhắc nhở)">Note (Nhắc nhở)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Trạng thái xử lý *</label>
+                        <select id="hStatus" class="w-full text-sm border border-slate-300 rounded-lg p-2.5 bg-white">
+                            <option value="Chưa xử lý">Chưa xử lý</option>
+                            <option value="Đã nhắc nhở / Khắc phục">Đã nhắc nhở / Khắc phục</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
-                    <label class="block font-medium text-slate-700 mb-1">Đường Dẫn Ảnh (URL hoặc ảnh mẫu)</label>
-                    <input type="url" id="photoUrl" required placeholder="https://images.unsplash.com/photo-..." class="w-full border border-slate-300 rounded-lg p-2.5">
-                    <p class="text-xs text-slate-400 mt-1">Gợi ý: Có thể dùng link ảnh Unsplash hoặc dán URL hình chụp thực tế.</p>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Biện pháp khắc phục</label>
+                    <input type="text" id="hAction" placeholder="Đình chỉ công việc, yêu cầu chấn chỉnh ngay" class="w-full text-sm border border-slate-300 rounded-lg p-2.5">
                 </div>
-                <div class="flex justify-end space-x-2 pt-3">
-                    <button type="button" onclick="closeModal('photoModal')" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-medium">Hủy</button>
-                    <button type="submit" class="bg-brand-600 text-white px-4 py-2 rounded-lg font-medium shadow">Thêm Ảnh</button>
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('hseModal')" class="px-4 py-2 bg-slate-100 text-xs font-bold rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-lg">Lưu Báo Cáo</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Application JavaScript -->
+    <!-- ================= LOGIC JAVASCRIPT ĐỒNG BỘ TOÀN HỆ THỐNG ================= -->
     <script>
-        // Default Master Data structure for Projects
-        const DEFAULT_PROJECTS = [
-            {
-                id: "p1",
-                name: "Nhà Phố 4 Tầng Hiện Đại - Quận 7",
-                location: "Đường số 14, P. Tân Hưng, Quận 7, TP.HCM",
-                investor: "Chị Nguyễn Thị Mai",
-                scale: "4 Tầng + Tum (DTSD: 280m2)",
-                startDate: "2026-02-10",
-                endDate: "2026-08-15",
-                dailyLogs: [
-                    { date: "2026-10-12", workers: 28, weather: "Nắng ráo, thuận lợi", content: "Tiến hành đổ bê tông dầm sàn lầu 3 thành công, đạt cường độ." },
-                    { date: "2026-10-11", workers: 24, weather: "Nắng ráo, thuận lợi", content: "Lắp đặt cốt thép, coppha dầm sàn lầu 3, kiểm tra hệ thống M&E âm sàn." }
-                ],
+        // Dữ liệu mẫu khởi tạo chuẩn cho Nhà Phố 4 Tầng nếu LocalStorage trống
+        const defaultData = {
+            "HP-01": {
+                info: { code: "HP-01", name: "Nhà Phố Thương Mại 4 Tầng - Khối A", location: "KĐT Vạn Phúc, TP. Thủ Đức", manager: "KS. Trần Hoàng Nam", budget: "8.5 Tỷ VNĐ", timeline: "5 Tháng" },
                 wbs: [
-                    { name: "Công tác chuẩn bị mặt bằng & Ép cọc", time: "10/02 - 25/02", contractor: "Đội Khoan Cọc H-Plus", progress: 100, status: "Đã hoàn thành" },
-                    { name: "Thi công Phần Móng & Hầm tự hoại", time: "26/02 - 20/03", contractor: "Đội Thi Công Móng 1", progress: 100, status: "Đã hoàn thành" },
-                    { name: "Thi công Cột, Dầm, Sàn Trệt & Lầu 1", time: "21/03 - 25/04", contractor: "Đội Thô Tổng Hợp", progress: 100, status: "Đã hoàn thành" },
-                    { name: "Thi công Cột, Dầm, Sàn Lầu 2 & Lầu 3", time: "26/04 - 30/05", contractor: "Đội Thô Tổng Hợp", progress: 85, status: "Đang thi công" },
-                    { name: "Xây tường bao & Tô trát trong ngoài", time: "01/06 - 15/07", contractor: "Đội Xây Tô Chuyên Nghiệp", progress: 20, status: "Đang thi công" },
-                    { name: "Hoàn thiện ốp lát, Sơn nước & Lắp thiết bị", time: "16/07 - 15/08", contractor: "Đội Hoàn Thiện Nội Thất", progress: 0, status: "Chưa thực hiện" }
+                    { id: "WBS-1.1", name: "Thi công ép cọc thử và cọc đại trà", time: "Tuần 1", progress: 100, status: "Đã hoàn thành" },
+                    { id: "WBS-1.2", name: "Đào đất móng, đài móng và đổ bê tông lót", time: "Tuần 2", progress: 100, status: "Đã hoàn thành" },
+                    { id: "WBS-1.3", name: "Lắp dựng cốt thép, cốp pha cột tầng trệt", time: "Tuần 3", progress: 85, status: "Đang thi công" },
+                    { id: "WBS-1.4", name: "Thi công sàn bê tông cốt thép tầng 1, 2, 3", time: "Tuần 4 - 8", progress: 30, status: "Đang thi công" }
+                ],
+                tasks: [
+                    { content: "Kiểm tra cao độ cốt pha dầm sàn tầng 2", assignee: "KS. Hùng", priority: "Khẩn cấp", deadline: "Hôm nay, 14:00", status: "Đang thực hiện" },
+                    { content: "Nghiệm thu thép cột trục A1 trước khi đổ bê tông", assignee: "KS. Minh", priority: "Quan trọng", deadline: "Ngày mai", status: "Đang thực hiện" }
                 ],
                 checklist: [
-                    { item: "Kiểm tra thép đai, khoảng cách a cột móng", standard: "Đúng bản vẽ kết cấu chi tiết", result: "Đạt", note: "Đã nghiệm thu nội bộ" },
-                    { item: "Nghiệm thu cốt thép dầm sàn lầu 3 trước đổ bê tông", standard: "Đường kính thép & kê sàn chuẩn 25mm", result: "Đạt", note: "Chủ đầu tư đã ký biên bản" },
-                    { item: "Kiểm tra chống thấm sàn vệ sinh lầu 2", standard: "Thử nước ngâm 24h không thấm", result: "Đạt", note: "Không phát hiện rò rỉ" },
-                    { item: "Kiểm tra hệ thống ống điện, ống nước âm tường", standard: "Áp lực ống nước thử áp 10 bar", result: "Đang kiểm tra", note: "Đang tiến hành test áp" }
+                    { item: "Nghiệm thu thép móng & đài móng", standard: "Đúng phi, đủ khoảng cách a, sạch rỉ", result: "Đạt", photo: "", note: "Đã kiểm tra biên bản với CĐT" },
+                    { item: "Nghiệm thu cốp pha cột tầng trệt", standard: "Chắc chắn, kín khít, không bám bẩn", result: "Đạt", photo: "", note: "Đảm bảo độ phẳng" },
+                    { item: "Kiểm tra ống chờ cấp thoát nước M&E sàn tầng 2", standard: "Đúng vị trí thiết kế, không rò rỉ", result: "Chờ kiểm tra", photo: "", note: "Đang chờ đội M&E hoàn thiện" }
                 ],
-                gallery: [
-                    { title: "Đổ bê tông sàn lầu 3", url: "https://images.unsplash.com/photo-1541888946425-d0fbb18f2495?auto=format&fit=crop&w=800&q=80" },
-                    { title: "Kiểm tra cốt thép trước đổ", url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80" },
-                    { title: "Toàn cảnh công trường Q7", url: "https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?auto=format&fit=crop&w=800&q=80" }
-                ]
-            },
-            {
-                id: "p2",
-                name: "Biệt Thự Vườn Nghỉ Dưỡng - Thảo Điền",
-                location: "Đường Nguyễn Văn Hưởng, TP. Thủ Đức",
-                investor: "Ông Trần Minh Quân",
-                scale: "3 Tầng + Sân Vườn Hồ Bơi",
-                startDate: "2026-03-01",
-                endDate: "2026-11-30",
-                dailyLogs: [
-                    { date: "2026-10-12", workers: 35, weather: "Nắng ráo", content: "Đào đất hố móng hồ bơi, ép cọc thử tải đợt 2." }
+                manpower: [
+                    { name: "Tổ Cốp pha / Cốt thép", count: "16 Người" },
+                    { name: "Tổ Bê tông", count: "12 Người" },
+                    { name: "Kỹ sư giám sát kỹ thuật", count: "3 Kỹ sư" }
                 ],
-                wbs: [
-                    { name: "San lấp & Ép cọc đại trà", time: "01/03 - 30/03", contractor: "Đội Ép Cọc Miền Nam", progress: 100, status: "Đã hoàn thành" },
-                    { name: "Thi công Móng & Tầng hầm kỹ thuật", time: "01/04 - 15/05", contractor: "Đội Xây Dựng Số 2", progress: 60, status: "Đang thi công" }
+                equipment: [
+                    { name: "Máy bơm bê tông tĩnh", status: "Hoạt động tốt" },
+                    { name: "Giàn giáo, cây chống thép", status: "Đạt chuẩn an toàn" }
                 ],
-                checklist: [
-                    { item: "Kiểm tra cao độ móng biệt thự", standard: "Đúng mốc thiết kế +0.45m", result: "Đạt", note: "Đã lập biên bản định vị" }
+                material: [
+                    { name: "Thép Pomina Ø16-Ø20", count: "20 Tấn" },
+                    { name: "Bê tông thương phẩm R7", count: "120 m³" }
                 ],
-                gallery: [
-                    { title: "Thi công ép cọc Thảo Điền", url: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80" }
+                hse: [
+                    { content: "Trang bị đầy đủ mũ bảo hộ, dây an toàn trên tầng cao", severity: "Warning (Cảnh báo)", action: "Nhắc nhở toàn bộ tổ đội trước giờ vào ca", status: "Đã nhắc nhở / Khắc phục" }
                 ]
             }
-        ];
+        };
 
-        let projectsData = [];
-        let currentProjectId = "p1";
+        // Lấy dữ liệu từ localStorage hoặc dùng mặc định
+        let appData = JSON.parse(localStorage.getItem('HPlus_Enterprise_Data')) || defaultData;
+        let currentProjectId = Object.keys(appData)[0] || "HP-01";
 
-        // Initialize LocalStorage with team sharing support
-        function initApp() {
-            const saved = localStorage.getItem('hplus_projects_v2');
-            if (saved) {
-                try {
-                    projectsData = JSON.parse(saved);
-                } catch (e) {
-                    projectsData = DEFAULT_PROJECTS;
-                }
+        // Khởi động khi tải trang
+        document.addEventListener("DOMContentLoaded", function () {
+            renderProjectDropdown();
+            loadProjectData(currentProjectId);
+        });
+
+        // Chuyển đổi tab hiển thị
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('border-amber-500', 'text-amber-600', 'font-bold');
+                el.classList.add('border-transparent', 'text-slate-500', 'font-medium');
+            });
+            document.getElementById(`tabContent-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tabBtn-${tabId}`);
+            activeBtn.classList.add('border-amber-500', 'text-amber-600', 'font-bold');
+            activeBtn.classList.remove('border-transparent', 'text-slate-500', 'font-medium');
+        }
+
+        // Render danh sách dropdown dự án
+        function renderProjectDropdown() {
+            const select = document.getElementById('globalProjectSelect');
+            select.innerHTML = '';
+            for (let id in appData) {
+                let opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = `${appData[id].info.code} - ${appData[id].info.name}`;
+                if (id === currentProjectId) opt.selected = true;
+                select.appendChild(opt);
+            }
+        }
+
+        // Chuyển dự án đang làm việc
+        function switchProject(projectId) {
+            currentProjectId = projectId;
+            loadProjectData(projectId);
+        }
+
+        // Nạp dữ liệu của dự án lên giao diện
+        function loadProjectData(projectId) {
+            const proj = appData[projectId];
+            if (!proj) return;
+
+            // Thông tin chung
+            document.getElementById('currentProjectCode').innerText = `MÃ: ${proj.info.code}`;
+            document.getElementById('currentProjectTitle').innerText = proj.info.name;
+            document.getElementById('currentProjectLocation').innerText = proj.info.location;
+            document.getElementById('currentProjectManager').innerText = proj.info.manager;
+            document.getElementById('currentProjectBudget').innerText = proj.info.budget || "--";
+            document.getElementById('currentProjectTimeline').innerText = proj.info.timeline || "--";
+
+            // Render WBS
+            const wbsBody = document.getElementById('wbsTableBody');
+            wbsBody.innerHTML = '';
+            proj.wbs.forEach((item, index) => {
+                let colorClass = item.progress === 100 ? 'bg-emerald-500' : 'bg-amber-500';
+                wbsBody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-mono font-bold text-xs text-slate-600">${item.id}</td>
+                        <td class="py-3 px-4 font-medium text-slate-800">${item.name}</td>
+                        <td class="py-3 px-4 text-slate-600">${item.time}</td>
+                        <td class="py-3 px-4 w-36">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-full bg-slate-100 rounded-full h-2"><div class="${colorClass} h-2 rounded-full" style="width: ${item.progress}%"></div></div>
+                                <span class="text-xs font-bold text-slate-600">${item.progress}%</span>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4"><span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium">${item.status}</span></td>
+                        <td class="py-3 px-4 text-center"><button onclick="deleteItem('wbs', ${index})" class="text-slate-400 hover:text-rose-600 text-xs"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>
+                `;
+            });
+
+            // Render Tasks (Giao việc)
+            const taskBody = document.getElementById('taskTableBody');
+            taskBody.innerHTML = '';
+            proj.tasks.forEach((item, index) => {
+                let badgePriority = item.priority === 'Khẩn cấp' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+                taskBody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-medium text-slate-800">${item.content}</td>
+                        <td class="py-3 px-4 text-slate-600">${item.assignee}</td>
+                        <td class="py-3 px-4"><span class="${badgePriority} border text-xs px-2.5 py-1 rounded-full font-medium">${item.priority}</span></td>
+                        <td class="py-3 px-4 text-slate-600">${item.deadline}</td>
+                        <td class="py-3 px-4"><span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium">${item.status}</span></td>
+                        <td class="py-3 px-4 text-center"><button onclick="deleteItem('tasks', ${index})" class="text-slate-400 hover:text-rose-600 text-xs"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>
+                `;
+            });
+
+            // Render Checklist & Summary
+            let totalChk = proj.checklist.length;
+            let passChk = proj.checklist.filter(i => i.result === 'Đạt').length;
+            let pendingChk = proj.checklist.filter(i => i.result === 'Chờ kiểm tra').length;
+            let failChk = proj.checklist.filter(i => i.result === 'Không đạt').length;
+
+            document.getElementById('sumTotalCheck').innerText = totalChk;
+            document.getElementById('sumPassCheck').innerText = passChk;
+            document.getElementById('sumPendingCheck').innerText = pendingChk;
+            document.getElementById('sumFailCheck').innerText = failChk;
+
+            const chkBody = document.getElementById('checklistTableBody');
+            chkBody.innerHTML = '';
+            proj.checklist.forEach((item, index) => {
+                let resultBadge = item.result === 'Đạt' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : (item.result === 'Không đạt' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200');
+                let photoHtml = item.photo ? `<img src="${item.photo}" class="w-12 h-12 object-cover rounded-lg border shadow-sm cursor-pointer" onclick="window.open('${item.photo}')" title="Bấm để xem lớn">` : `<span class="text-xs text-slate-400 italic">Chưa có ảnh</span>`;
+                chkBody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-medium text-slate-800">${item.item}</td>
+                        <td class="py-3 px-4 text-slate-600 text-xs">${item.standard}</td>
+                        <td class="py-3 px-4">${photoHtml}</td>
+                        <td class="py-3 px-4"><span class="${resultBadge} border text-xs px-2.5 py-1 rounded-full font-medium">${item.result}</span></td>
+                        <td class="py-3 px-4 text-xs text-slate-600">${item.note || '--'}</td>
+                        <td class="py-3 px-4 text-center"><button onclick="deleteItem('checklist', ${index})" class="text-slate-400 hover:text-rose-600 text-xs"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>
+                `;
+            });
+
+            // Render Nhân lực, Thiết bị, Vật tư
+            renderSimpleTable('manpowerTableBody', proj.manpower, 'manpower');
+            renderSimpleTable('equipmentTableBody', proj.equipment, 'equipment');
+            renderSimpleTable('materialTableBody', proj.material, 'material');
+
+            // Render HSE
+            const hseBody = document.getElementById('hseTableBody');
+            hseBody.innerHTML = '';
+            proj.hse.forEach((item, index) => {
+                hseBody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-medium text-slate-800">${item.content}</td>
+                        <td class="py-3 px-4"><span class="bg-rose-50 text-rose-700 border border-rose-200 text-xs px-2.5 py-1 rounded-full font-medium">${item.severity}</span></td>
+                        <td class="py-3 px-4 text-slate-600 text-xs">${item.action}</td>
+                        <td class="py-3 px-4"><span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-medium">${item.status}</span></td>
+                        <td class="py-3 px-4 text-center"><button onclick="deleteItem('hse', ${index})" class="text-slate-400 hover:text-rose-600 text-xs"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderSimpleTable(elementId, dataList, type) {
+            const tbody = document.getElementById(elementId);
+            tbody.innerHTML = '';
+            dataList.forEach((item, index) => {
+                let col1 = type === 'manpower' ? item.name : (type === 'equipment' ? item.name : item.name);
+                let col2 = type === 'manpower' ? item.count : (type === 'equipment' ? item.status : item.count);
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-2 font-medium text-slate-800">${col1}</td>
+                        <td class="p-2 text-slate-600">${col2}</td>
+                        <td class="p-2 text-center"><button onclick="deleteItem('${type}', ${index})" class="text-slate-400 hover:text-rose-600 text-xs"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Lưu trữ tự động vào localStorage
+        function saveAndReload() {
+            localStorage.setItem('HPlus_Enterprise_Data', JSON.stringify(appData));
+            loadProjectData(currentProjectId);
+        }
+
+        // Mở / Đóng Modal
+        function openModal(modalId) { document.getElementById(modalId).classList.remove('hidden'); }
+        function closeModal(modalId) { document.getElementById(modalId).classList.add('hidden'); }
+
+        // Xử lý thêm Dự Án Mới
+        function handleProjectSubmit(e) {
+            e.preventDefault();
+            let code = document.getElementById('pCode').value;
+            let name = document.getElementById('pName').value;
+            let location = document.getElementById('pLocation').value;
+            let manager = document.getElementById('pManager').value;
+            let budget = document.getElementById('pBudget').value;
+            let timeline = document.getElementById('pTimeline').value;
+
+            if (appData[code]) {
+                alert('Mã dự án đã tồn tại! Vui lòng dùng mã khác.');
+                return;
+            }
+
+            appData[code] = {
+                info: { code, name, location, manager, budget, timeline },
+                wbs: [], tasks: [], checklist: [], manpower: [], equipment: [], material: [], hse: []
+            };
+
+            currentProjectId = code;
+            saveAndReload();
+            renderProjectDropdown();
+            closeModal('projectModal');
+            e.target.reset();
+        }
+
+        // Xóa dự án hiện tại
+        function deleteCurrentProject() {
+            let keys = Object.keys(appData);
+            if (keys.length <= 1) {
+                alert('Hệ thống phải duy trì ít nhất một dự án hoạt động!');
+                return;
+            }
+            if (confirm(`Bạn có chắc chắn muốn xóa dự án "${appData[currentProjectId].info.name}" không?`)) {
+                delete appData[currentProjectId];
+                currentProjectId = Object.keys(appData)[0];
+                saveAndReload();
+                renderProjectDropdown();
+            }
+        }
+
+        // Thêm WBS
+        function handleWbsSubmit(e) {
+            e.preventDefault();
+            appData[currentProjectId].wbs.push({
+                id: document.getElementById('wCode').value,
+                name: document.getElementById('wName').value,
+                time: document.getElementById('wTime').value,
+                progress: parseInt(document.getElementById('wProgress').value),
+                status: document.getElementById('wStatus').value
+            });
+            saveAndReload();
+            closeModal('wbsModal');
+            e.target.reset();
+        }
+
+        // Thêm Task giao việc
+        function handleTaskSubmit(e) {
+            e.preventDefault();
+            appData[currentProjectId].tasks.push({
+                content: document.getElementById('tContent').value,
+                assignee: document.getElementById('tAssignee').value,
+                priority: document.getElementById('tPriority').value,
+                deadline: document.getElementById('tDeadline').value,
+                status: document.getElementById('tStatus').value
+            });
+            saveAndReload();
+            closeModal('taskModal');
+            e.target.reset();
+        }
+
+        // Thêm Checklist kèm xử lý ảnh Base64
+        function handleChecklistSubmit(e) {
+            e.preventDefault();
+            let fileInput = document.getElementById('cPhoto');
+            if (fileInput.files && fileInput.files[0]) {
+                let reader = new FileReader();
+                reader.onload = function(uploadEvent) {
+                    pushChecklistData(uploadEvent.target.result);
+                };
+                reader.readAsDataURL(fileInput.files[0]);
             } else {
-                projectsData = DEFAULT_PROJECTS;
-                saveToLocalStorage();
+                pushChecklistData("");
             }
-
-            if (projectsData.length > 0) {
-                currentProjectId = projectsData[0].id;
-            }
-            renderProjectSelector();
-            loadCurrentProject();
+            closeModal('checklistModal');
+            e.target.reset();
         }
 
-        function saveToLocalStorage() {
-            localStorage.setItem('hplus_projects_v2', JSON.stringify(projectsData));
+        function pushChecklistData(photoBase64) {
+            appData[currentProjectId].checklist.push({
+                item: document.getElementById('cItem').value,
+                standard: document.getElementById('cStandard').value,
+                result: document.getElementById('cResult').value,
+                photo: photoBase64,
+                note: document.getElementById('cNote').value
+            });
+            saveAndReload();
         }
 
-        // Team Backup / Export JSON function
-        function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(projectsData, null, 2));
+        // Thêm Tài nguyên (Nhân lực, Thiết bị, Vật tư)
+        function handleResourceSubmit(e, type) {
+            e.preventDefault();
+            if (type === 'manpower') {
+                appData[currentProjectId].manpower.push({ name: document.getElementById('mpName').value, count: document.getElementById('mpCount').value });
+                closeModal('manpowerModal');
+            } else if (type === 'equipment') {
+                appData[currentProjectId].equipment.push({ name: document.getElementById('eqName').value, status: document.getElementById('eqStatus').value });
+                closeModal('equipmentModal');
+            } else if (type === 'material') {
+                appData[currentProjectId].material.push({ name: document.getElementById('matName').value, count: document.getElementById('matQty').value });
+                closeModal('materialModal');
+            }
+            saveAndReload();
+            e.target.reset();
+        }
+
+        // Thêm HSE
+        function handleHseSubmit(e) {
+            e.preventDefault();
+            appData[currentProjectId].hse.push({
+                content: document.getElementById('hContent').value,
+                severity: document.getElementById('hSeverity').value,
+                action: document.getElementById('hAction').value,
+                status: document.getElementById('hStatus').value
+            });
+            saveAndReload();
+            closeModal('hseModal');
+            e.target.reset();
+        }
+
+        // Xóa item trong bảng
+        function deleteItem(type, index) {
+            if (confirm("Bạn có chắc chắn muốn xóa mục này?")) {
+                appData[currentProjectId][type].splice(index, 1);
+                saveAndReload();
+            }
+        }
+
+        // SAO LƯU DỮ LIỆU THÀNH FILE JSON (Dành cho chia sẻ nhóm)
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
             const downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `HPlus_Operations_Backup_${new Date().toISOString().slice(0,10)}.json`);
+            downloadAnchor.setAttribute("download", `HPlus_Construction_Backup_${new Date().toISOString().slice(0,10)}.json`);
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
         }
 
-        // Team Restore / Import JSON function
-        function importData(event) {
+        // PHỤC HỒI DỮ LIỆU TỪ FILE JSON
+        function importDataJSON(event) {
             const fileReader = new FileReader();
             if (event.target.files[0]) {
                 fileReader.readAsText(event.target.files[0], "UTF-8");
-                fileReader.onload = function(e) {
+                fileReader.onload = function (e) {
                     try {
-                        const imported = JSON.parse(e.target.result);
-                        if (Array.isArray(imported) && imported.length > 0) {
-                            projectsData = imported;
-                            saveToLocalStorage();
-                            currentProjectId = projectsData[0].id;
-                            renderProjectSelector();
-                            loadCurrentProject();
-                            alert("Khôi phục dữ liệu thành công cho toàn bộ team!");
-                        } else {
-                            alert("File JSON không hợp lệ.");
-                        }
-                    } catch (err) {
-                        alert("Lỗi đọc file JSON: " + err.message);
+                        appData = JSON.parse(e.target.result);
+                        currentProjectId = Object.keys(appData)[0] || "HP-01";
+                        saveAndReload();
+                        renderProjectDropdown();
+                        alert("✅ Phục hồi dữ liệu thành công cho toàn bộ hệ thống!");
+                    } catch (error) {
+                        alert("❌ File sao lưu không hợp lệ!");
                     }
                 };
             }
         }
-
-        function resetDataToDefault() {
-            if (confirm("Bạn có chắc muốn đặt lại dữ liệu mặc định ban đầu không?")) {
-                projectsData = DEFAULT_PROJECTS;
-                saveToLocalStorage();
-                currentProjectId = projectsData[0].id;
-                renderProjectSelector();
-                loadCurrentProject();
-                alert("Đã đưa dữ liệu về mặc định.");
-            }
-        }
-
-        // Navigation Tabs
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(el => {
-                el.classList.remove('border-brand-600', 'text-brand-600');
-                el.classList.add('border-transparent', 'text-slate-500');
-            });
-
-            document.getElementById(`tab-content-${tabId}`).classList.remove('hidden');
-            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
-            activeBtn.classList.remove('border-transparent', 'text-slate-500');
-            activeBtn.classList.add('border-brand-600', 'text-brand-600');
-        }
-
-        function renderProjectSelector() {
-            const selector = document.getElementById('projectSelector');
-            selector.innerHTML = '';
-            projectsData.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.textContent = p.name;
-                if (p.id === currentProjectId) opt.selected = true;
-                selector.appendChild(opt);
-            });
-        }
-
-        function switchProject(id) {
-            currentProjectId = id;
-            loadCurrentProject();
-        }
-
-        function getCurrentProject() {
-            return projectsData.find(p => p.id === currentProjectId) || projectsData[0];
-        }
-
-        // Render Current Project Data across all views
-        function loadCurrentProject() {
-            const p = getCurrentProject();
-            if (!p) return;
-
-            // Compute overall progress average from WBS
-            let avgProgress = 0;
-            let completedCount = 0;
-            if (p.wbs && p.wbs.length > 0) {
-                const total = p.wbs.reduce((acc, task) => acc + Number(task.progress), 0);
-                avgProgress = Math.round(total / p.wbs.length);
-                completedCount = p.wbs.filter(t => t.status === 'Đã hoàn thành' || t.progress === 100).length;
-            }
-
-            // Stat pills
-            document.getElementById('statProgress').textContent = avgProgress + '%';
-            document.getElementById('statCompleted').textContent = `${completedCount}/${p.wbs.length}`;
-            const latestWorker = p.dailyLogs && p.dailyLogs.length > 0 ? p.dailyLogs[0].workers : 0;
-            document.getElementById('statWorkers').textContent = latestWorker + ' người';
-            document.getElementById('statQA').textContent = 'Đạt Chuẩn';
-
-            // Project Info Details
-            document.getElementById('projectInfoDetails').innerHTML = `
-                <div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Chủ Đầu Tư:</span><span class="font-medium">${p.investor}</span></div>
-                <div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Địa Điểm:</span><span class="font-medium text-right">${p.location}</span></div>
-                <div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Quy Mô:</span><span class="font-medium">${p.scale}</span></div>
-                <div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Khởi Công:</span><span class="font-medium">${p.startDate}</span></div>
-                <div class="flex justify-between py-1"><span class="text-slate-500">Hoàn Thành (DK):</span><span class="font-medium">${p.endDate}</span></div>
-            `;
-
-            // Daily Logs
-            const logsContainer = document.getElementById('dailyLogsList');
-            logsContainer.innerHTML = '';
-            if (p.dailyLogs && p.dailyLogs.length > 0) {
-                p.dailyLogs.forEach((log, idx) => {
-                    logsContainer.innerHTML += `
-                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 text-sm space-y-1">
-                            <div class="flex justify-between font-semibold text-slate-700 text-xs">
-                                <span><i class="fa-solid fa-calendar mr-1 text-brand-600"></i> ${log.date} (${log.weather})</span>
-                                <span class="text-blue-600">Nhân công: ${log.workers} người</span>
-                            </div>
-                            <p class="text-slate-600">${log.content}</p>
-                        </div>
-                    `;
-                });
-            } else {
-                logsContainer.innerHTML = `<p class="text-xs text-slate-400 italic">Chưa có nhật ký nào.</p>`;
-            }
-
-            // WBS Table
-            const wbsTable = document.getElementById('wbsTableBody');
-            wbsTable.innerHTML = '';
-            p.wbs.forEach((task, idx) => {
-                const badgeColor = task.progress == 100 ? 'bg-emerald-100 text-emerald-700' : task.progress > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600';
-                wbsTable.innerHTML += `
-                    <tr class="hover:bg-slate-50/80 transition">
-                        <td class="p-3 font-medium text-slate-800">${task.name}</td>
-                        <td class="p-3 text-slate-600">${task.time}</td>
-                        <td class="p-3 text-slate-600">${task.contractor}</td>
-                        <td class="p-3">
-                            <div class="flex items-center space-x-2">
-                                <div class="w-full bg-slate-200 rounded-full h-2.5 max-w-[100px]">
-                                    <div class="bg-brand-500 h-2.5 rounded-full" style="width: ${task.progress}%"></div>
-                                </div>
-                                <span class="text-xs font-bold">${task.progress}%</span>
-                            </div>
-                        </td>
-                        <td class="p-3"><span class="px-2.5 py-1 rounded-full text-xs font-semibold ${badgeColor}">${task.status}</span></td>
-                        <td class="p-3 text-right space-x-2">
-                            <button onclick="editTask(${idx})" class="text-slate-400 hover:text-brand-600"><i class="fa-solid fa-pen"></i></button>
-                            <button onclick="deleteTask(${idx})" class="text-slate-400 hover:text-rose-600"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            // Checklist Table
-            const chkTable = document.getElementById('checklistTableBody');
-            chkTable.innerHTML = '';
-            p.checklist.forEach((chk, idx) => {
-                const resColor = chk.result === 'Đạt' ? 'text-emerald-600 bg-emerald-50' : chk.result === 'Chưa đạt' ? 'text-rose-600 bg-rose-50' : 'text-amber-600 bg-amber-50';
-                chkTable.innerHTML += `
-                    <tr class="hover:bg-slate-50/80 transition">
-                        <td class="p-3 font-medium text-slate-800">${chk.item}</td>
-                        <td class="p-3 text-slate-600">${chk.standard}</td>
-                        <td class="p-3 text-center"><span class="px-2.5 py-1 rounded-md text-xs font-bold ${resColor}">${chk.result}</span></td>
-                        <td class="p-3 text-slate-600">${chk.note}</td>
-                        <td class="p-3 text-right">
-                            <button onclick="deleteChecklist(${idx})" class="text-slate-400 hover:text-rose-600"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            // Gallery Grid
-            const galleryGrid = document.getElementById('galleryGrid');
-            galleryGrid.innerHTML = '';
-            p.gallery.forEach((photo, idx) => {
-                galleryGrid.innerHTML += `
-                    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-                        <div class="h-40 bg-slate-100 overflow-hidden relative">
-                            <img src="${photo.url}" alt="${photo.title}" class="w-full h-full object-cover hover:scale-105 transition duration-300" onerror="this.src='https://placehold.co/400x300/e2e8f0/64748b?text=H-Plus+Image'">
-                        </div>
-                        <div class="p-3 flex justify-between items-center">
-                            <span class="text-xs font-medium text-slate-700 truncate">${photo.title}</span>
-                            <button onclick="deletePhoto(${idx})" class="text-slate-400 hover:text-rose-600 text-xs"><i class="fa-solid fa-trash"></i></button>
-                        </div>
-                    </div>
-                `;
-            });
-
-            // Report View Data
-            document.getElementById('reportProjectName').textContent = p.name.toUpperCase();
-            document.getElementById('reportProjectLocation').textContent = `Địa điểm: ${p.location} | Chủ đầu tư: ${p.investor}`;
-            document.getElementById('reportDate').textContent = new Date().toLocaleDateString('vi-VN');
-            document.getElementById('reportStatProgress').textContent = avgProgress + '%';
-            document.getElementById('reportStatWorkers').textContent = latestWorker + ' người';
-
-            const reportWbsBody = document.getElementById('reportWbsTableBody');
-            reportWbsBody.innerHTML = '';
-            p.wbs.forEach(task => {
-                reportWbsBody.innerHTML += `
-                    <tr class="border-b border-slate-200">
-                        <td class="p-2 border-r border-slate-200 font-medium">${task.name}</td>
-                        <td class="p-2 border-r border-slate-200">${task.time}</td>
-                        <td class="p-2 border-r border-slate-200">${task.contractor}</td>
-                        <td class="p-2 border-r border-slate-200 font-bold">${task.progress}%</td>
-                        <td class="p-2">${task.status}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        // Modal Controls
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
-        }
-
-        function openNewProjectModal() {
-            document.getElementById('projectFormId').value = '';
-            document.getElementById('pName').value = '';
-            document.getElementById('pLocation').value = '';
-            document.getElementById('pInvestor').value = '';
-            document.getElementById('pScale').value = '';
-            document.getElementById('pStart').value = new Date().toISOString().slice(0,10);
-            document.getElementById('pEnd').value = '';
-            document.getElementById('projectModalTitle').textContent = 'Thêm Dự Án Mới';
-            document.getElementById('projectModal').classList.remove('hidden');
-        }
-
-        function openEditProjectModal() {
-            const p = getCurrentProject();
-            document.getElementById('projectFormId').value = p.id;
-            document.getElementById('pName').value = p.name;
-            document.getElementById('pLocation').value = p.location;
-            document.getElementById('pInvestor').value = p.investor;
-            document.getElementById('pScale').value = p.scale;
-            document.getElementById('pStart').value = p.startDate;
-            document.getElementById('pEnd').value = p.endDate;
-            document.getElementById('projectModalTitle').textContent = 'Chỉnh Sửa Thông Tin Dự Án';
-            document.getElementById('projectModal').classList.remove('hidden');
-        }
-
-        function saveProject(e) {
-            e.preventDefault();
-            const id = document.getElementById('projectFormId').value;
-            const name = document.getElementById('pName').value;
-            const location = document.getElementById('pLocation').value;
-            const investor = document.getElementById('pInvestor').value;
-            const scale = document.getElementById('pScale').value;
-            const startDate = document.getElementById('pStart').value;
-            const endDate = document.getElementById('pEnd').value;
-
-            if (id) {
-                const p = projectsData.find(item => item.id === id);
-                if (p) {
-                    p.name = name;
-                    p.location = location;
-                    p.investor = investor;
-                    p.scale = scale;
-                    p.startDate = startDate;
-                    p.endDate = endDate;
-                }
-            } else {
-                const newId = 'p_' + Date.now();
-                projectsData.push({
-                    id: newId,
-                    name, location, investor, scale, startDate, endDate,
-                    dailyLogs: [],
-                    wbs: [],
-                    checklist: [],
-                    gallery: []
-                });
-                currentProjectId = newId;
-            }
-
-            saveToLocalStorage();
-            renderProjectSelector();
-            loadCurrentProject();
-            closeModal('projectModal');
-        }
-
-        function openAddLogModal() {
-            document.getElementById('logDate').value = new Date().toISOString().slice(0,10);
-            document.getElementById('logModal').classList.remove('hidden');
-        }
-
-        function saveLog(e) {
-            e.preventDefault();
-            const p = getCurrentProject();
-            p.dailyLogs.unshift({
-                date: document.getElementById('logDate').value,
-                workers: Number(document.getElementById('logWorkers').value),
-                weather: document.getElementById('logWeather').value,
-                content: document.getElementById('logContent').value
-            });
-            saveToLocalStorage();
-            loadCurrentProject();
-            closeModal('logModal');
-            document.getElementById('logContent').value = '';
-        }
-
-        function openAddTaskModal() {
-            document.getElementById('taskEditIdx').value = '';
-            document.getElementById('tName').value = '';
-            document.getElementById('tStart').value = '';
-            document.getElementById('tEnd').value = '';
-            document.getElementById('tContractor').value = '';
-            document.getElementById('tProgress').value = 0;
-            document.getElementById('taskModalTitle').textContent = 'Thêm Hạng Mục Thi Công';
-            document.getElementById('taskModal').classList.remove('hidden');
-        }
-
-        function editTask(idx) {
-            const p = getCurrentProject();
-            const task = p.wbs[idx];
-            document.getElementById('taskEditIdx').value = idx;
-            document.getElementById('tName').value = task.name;
-            document.getElementById('tStart').value = task.time.split(' - ')[0] || '';
-            document.getElementById('tEnd').value = task.time.split(' - ')[1] || '';
-            document.getElementById('tContractor').value = task.contractor;
-            document.getElementById('tProgress').value = task.progress;
-            document.getElementById('tStatus').value = task.status;
-            document.getElementById('taskModalTitle').textContent = 'Chỉnh Sửa Hạng Mục';
-            document.getElementById('taskModal').classList.remove('hidden');
-        }
-
-        function saveTask(e) {
-            e.preventDefault();
-            const p = getCurrentProject();
-            const idx = document.getElementById('taskEditIdx').value;
-            const name = document.getElementById('tName').value;
-            const time = `${document.getElementById('tStart').value} - ${document.getElementById('tEnd').value}`;
-            const contractor = document.getElementById('tContractor').value;
-            const progress = Number(document.getElementById('tProgress').value);
-            const status = document.getElementById('tStatus').value;
-
-            if (idx !== '') {
-                p.wbs[idx] = { name, time, contractor, progress, status };
-            } else {
-                p.wbs.push({ name, time, contractor, progress, status });
-            }
-
-            saveToLocalStorage();
-            loadCurrentProject();
-            closeModal('taskModal');
-        }
-
-        function deleteTask(idx) {
-            if (confirm("Xóa hạng mục này?")) {
-                const p = getCurrentProject();
-                p.wbs.splice(idx, 1);
-                saveToLocalStorage();
-                loadCurrentProject();
-            }
-        }
-
-        function openAddChecklistModal() {
-            document.getElementById('cItem').value = '';
-            document.getElementById('cStandard').value = '';
-            document.getElementById('cNote').value = '';
-            document.getElementById('checklistModal').classList.remove('hidden');
-        }
-
-        function saveChecklistItem(e) {
-            e.preventDefault();
-            const p = getCurrentProject();
-            p.checklist.push({
-                item: document.getElementById('cItem').value,
-                standard: document.getElementById('cStandard').value,
-                result: document.getElementById('cResult').value,
-                note: document.getElementById('cNote').value
-            });
-            saveToLocalStorage();
-            loadCurrentProject();
-            closeModal('checklistModal');
-        }
-
-        function deleteChecklist(idx) {
-            if (confirm("Xóa mục nghiệm thu này?")) {
-                const p = getCurrentProject();
-                p.checklist.splice(idx, 1);
-                saveToLocalStorage();
-                loadCurrentProject();
-            }
-        }
-
-        function openAddPhotoModal() {
-            document.getElementById('photoTitle').value = '';
-            document.getElementById('photoUrl').value = '';
-            document.getElementById('photoModal').classList.remove('hidden');
-        }
-
-        function savePhoto(e) {
-            e.preventDefault();
-            const p = getCurrentProject();
-            p.gallery.push({
-                title: document.getElementById('photoTitle').value,
-                url: document.getElementById('photoUrl').value
-            });
-            saveToLocalStorage();
-            loadCurrentProject();
-            closeModal('photoModal');
-        }
-
-        function deletePhoto(idx) {
-            if (confirm("Xóa hình ảnh này?")) {
-                const p = getCurrentProject();
-                p.gallery.splice(idx, 1);
-                saveToLocalStorage();
-                loadCurrentProject();
-            }
-        }
-
-        // Run on load
-        window.onload = initApp;
     </script>
 </body>
 </html>
